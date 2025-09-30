@@ -13,7 +13,6 @@ import {
 } from "./schemaValidator";
 import {TransactionManager} from "./transactionManager";
 import {heartbeatOcppMessage} from "./v16/messages/heartbeat";
-import {rejections} from "winston";
 
 interface VCPOptions {
     ocppVersion: OcppVersion;
@@ -33,20 +32,20 @@ interface LogEntry {
 
 export class VCP {
     private ws?: WebSocket;
-    private messageHandler: OcppMessageHandler;
+    private readonly messageHandler: OcppMessageHandler;
 
     private isFinishing = false;
 
     transactionManager = new TransactionManager();
 
-    constructor(private vcpOptions: VCPOptions) {
+    constructor(private readonly vcpOptions: VCPOptions) {
         this.messageHandler = resolveMessageHandler(vcpOptions.ocppVersion);
     }
 
     async connect(): Promise<void> {
         logger.info(`Connecting... | ${util.inspect(this.vcpOptions)}`);
         this.isFinishing = false;
-        return new Promise((resolve,reject) => {
+        return new Promise((resolve, reject) => {
             const websocketUrl = `${this.vcpOptions.endpoint}/${this.vcpOptions.chargePointId}`;
             const protocol = toProtocolVersion(this.vcpOptions.ocppVersion);
             this.ws = new WebSocket(websocketUrl, [protocol], {
@@ -61,7 +60,7 @@ export class VCP {
                 },
             });
 
-            this.ws.on("open", () =>{
+            this.ws.on("open", () => {
                 this.ws?.removeAllListeners("error");
                 this.ws?.on("error", (error: Error) => {
                     this._wsError(error);
@@ -80,7 +79,7 @@ export class VCP {
             );
             this.ws.on("error", (error: Error) => {
                 logger.error(`${this.vcpOptions.chargePointId}:${this.vcpOptions.ocppVersion} - ${error.message}`);
-                reject();
+                reject(new Error(error.message));
             });
         });
     }
@@ -88,6 +87,7 @@ export class VCP {
     isConnected() {
         return this.ws?.readyState === WebSocket.OPEN;
     }
+
     // biome-ignore lint/suspicious/noExplicitAny: ocpp types
     send(ocppCall: OcppCall<any>) {
         if (!this.ws) {
@@ -155,7 +155,6 @@ export class VCP {
         this.isFinishing = true;
         this.ws.close();
         this.ws = undefined;
-        // process.exit(1);
     }
 
     async getDiagnosticData(): Promise<LogEntry[]> {
@@ -242,7 +241,6 @@ export class VCP {
             return;
         }
         logger.info(`Connection closed. code=${code}, reason=${reason}`);
-        // process.exit();
     }
 
     private _wsError(error?: Error) {

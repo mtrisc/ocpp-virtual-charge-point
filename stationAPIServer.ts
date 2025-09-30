@@ -35,6 +35,18 @@ function createAdminServer() {
             }
         }
     )
+    adminApi.delete("/station/:stationName"
+        , (c) => {
+            const stationName = c.req.param("stationName");
+            if (!stationName) {return c.text("Stationname must not be empty", 400)}
+            try {
+                stationController.deleteStation(stationName);
+                return c.text("Station created successfully: ");
+            } catch (e) {
+                return c.text("Error creating station:" + e, 500);
+            }
+        }
+    )
 
     adminApi.post(
         "/:stationName/execute",
@@ -43,16 +55,18 @@ function createAdminServer() {
             z.object({
                 action: z.string(),
                 payload: z.any(),
+                messageId: z.string().optional(),
             }),
         ),
         (c) => {
             const validated = c.req.valid("json");
             const stationName = c.req.param("stationName");
-            stationController.send(stationName, call(validated.action, validated.payload));
+            let ocppCall = call(validated.action, validated.payload);
+            if (validated.messageId) { ocppCall.messageId = validated.messageId }
+            stationController.send(stationName, ocppCall);
             return c.text("OK");
         },
     );
-
     return {adminApi};
 }
 
@@ -69,7 +83,7 @@ function startAdminServer() {
 
 const startStation = async (version: OcppVersion) => {
     const adminPort = Number.parseInt(process.env.ADMIN_PORT ?? "9999");
-    let response = await fetch(`http://localhost:${adminPort}/station`, {
+    await fetch(`http://localhost:${adminPort}/station`, {
         method: "POST",
         body: JSON.stringify({
             stationName: process.env.STATION_NAME ?? "123456",

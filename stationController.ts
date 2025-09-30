@@ -17,7 +17,7 @@ export type Station = {
 }
 
 export class StationController {
-    private chargingStations: Map<String, VCP> = new Map<string, VCP>();
+    private readonly chargingStations: Map<string, VCP> = new Map<string, VCP>();
 
     async createStation(station: Station) {
         let existingStation = this.chargingStations.get(station.stationName);
@@ -49,6 +49,11 @@ export class StationController {
         this.chargingStations.set(station.stationName, vcp);
     }
 
+    deleteStation(stationName: string) {
+        if (this.chargingStations.has(stationName)) {throw new Error(`Station ${stationName} does not exist`)}
+        this.chargingStations.get(stationName)?.close();
+        this.chargingStations.delete(stationName);
+    }
 
     send(stationName: string, ocppCall: OcppCall<any>) {
         this.chargingStations.get(stationName)?.send(ocppCall);
