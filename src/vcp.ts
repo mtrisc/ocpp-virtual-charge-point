@@ -23,11 +23,11 @@ interface VCPOptions {
 }
 
 interface LogEntry {
-    type: 'Application';
-    timestamp: string;
-    level: string;
-    message: string;
-    metadata: Record<string, unknown>;
+  type: "Application";
+  timestamp: string;
+  level: string;
+  message: string;
+  metadata: Record<string, unknown>;
 }
 
 export class VCP {
@@ -157,83 +157,46 @@ export class VCP {
         this.ws = undefined;
     }
 
-    async getDiagnosticData(): Promise<LogEntry[]> {
-        try {
-            // Get logs from Winston logger's memory
-            const transport = logger.transports[0];
+  async getDiagnosticData(): Promise<LogEntry[]> {
+    try {
+      // Get logs from Winston logger's memory
+      const transport = logger.transports[0];
 
-            // Create a promise that resolves with collected logs
-            const logStream = new Promise<LogEntry[]>((resolve) => {
-                const entries: LogEntry[] = [];
+      // Create a promise that resolves with collected logs
+      const logStream = new Promise<LogEntry[]>((resolve) => {
+        const entries: LogEntry[] = [];
 
-                // Listen for new logs
-                transport.on('logged', (info: {
-                    timestamp: string;
-                    level: string;
-                    message: string;
-                    [key: string]: unknown;
-                }) => {
-                    entries.push({
-                        type: 'Application',
-                        timestamp: info.timestamp || new Date().toISOString(),
-                        level: info.level,
-                        message: info.message,
-                        metadata: Object.fromEntries(
-                            Object.entries(info).filter(([key]) =>
-                                !['timestamp', 'level', 'message'].includes(key)
-                            )
-                        )
-                    });
-                });
-
-                // Resolve after a short delay to collect recent logs
-                setTimeout(() => resolve(entries), 10000);
+        // Listen for new logs
+        transport.on(
+          "logged",
+          (info: {
+            timestamp: string;
+            level: string;
+            message: string;
+            [key: string]: unknown;
+          }) => {
+            entries.push({
+              type: "Application",
+              timestamp: info.timestamp || new Date().toISOString(),
+              level: info.level,
+              message: info.message,
+              metadata: Object.fromEntries(
+                Object.entries(info).filter(
+                  ([key]) => !["timestamp", "level", "message"].includes(key),
+                ),
+              ),
             });
+          },
+        );
 
-            return await logStream;
-        } catch (err) {
-            logger.error('Failed to read application logs:', err);
-            return [];
-        }
-    }
+        // Resolve after a short delay to collect recent logs
+        setTimeout(() => resolve(entries), 10000);
+      });
 
-    private _onMessage(message: string) {
-        logger.info(`${this.vcpOptions.chargePointId}:${this.vcpOptions.ocppVersion} Receive message ⬅️  ${message}`);
-        const data = JSON.parse(message);
-        const [type, ...rest] = data;
-        if (type === 2) {
-            const [messageId, action, payload] = rest;
-            validateOcppIncomingRequest(this.vcpOptions.ocppVersion, action, payload);
-            this.messageHandler.handleCall(this, {messageId, action, payload});
-        } else if (type === 3) {
-            const [messageId, payload] = rest;
-            const enqueuedCall = ocppOutbox.get(messageId);
-            if (!enqueuedCall) {
-                throw new Error(
-                    `${this.vcpOptions.chargePointId}:${this.vcpOptions.ocppVersion} Received CallResult for unknown messageId=${messageId}`,
-                );
-            }
-            validateOcppOutgoingResponse(
-                this.vcpOptions.ocppVersion,
-                enqueuedCall.action,
-                payload,
-            );
-            this.messageHandler.handleCallResult(this, enqueuedCall, {
-                messageId,
-                payload,
-                action: enqueuedCall.action,
-            });
-        } else if (type === 4) {
-            const [messageId, errorCode, errorDescription, errorDetails] = rest;
-            this.messageHandler.handleCallError(this, {
-                messageId,
-                errorCode,
-                errorDescription,
-                errorDetails,
-            });
-        } else {
-            throw new Error(`${this.vcpOptions.chargePointId}:${this.vcpOptions.ocppVersion} Unrecognized message type ${type}`);
-        }
+      return await logStream;
+    } catch (err) {
+      logger.error("Failed to read application logs:", err);
+      return [];
     }
 
     private _onClose(code: number, reason: string) {
