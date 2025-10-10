@@ -44,7 +44,7 @@ npx OCPP_VERSION=2.0.1 npx tsx stationAPIServer.ts
 ## Example
 
 ```bash
-> WS_URL=ws://localhost:3000/ws STATION_NAME=Test_Station npx tsx stationAPIServer.ts
+> WS_URL=ws://localhost:3000/ws STATION_NAME=Test_Station OCPP_VERSION=1.6 PASSWORD=default npx tsx stationAPIServer.ts
 
 2025-09-29 16:44:29 info: Starting admin server on 9999 
 2025-09-29 16:44:29 info: Connecting... | {
