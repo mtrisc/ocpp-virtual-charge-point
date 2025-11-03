@@ -33,8 +33,7 @@ interface LogEntry {
 export class VCP {
     private ws?: WebSocket;
     private readonly messageHandler: OcppMessageHandler;
-
-    private isFinishing = false;
+    private reconnectInterval?: NodeJS.Timeout;
 
     transactionManager = new TransactionManager();
 
@@ -44,43 +43,44 @@ export class VCP {
 
     async connect(): Promise<void> {
         logger.info(`Connecting... | ${util.inspect(this.vcpOptions)}`);
-        this.isFinishing = false;
         return new Promise((resolve, reject) => {
-            const websocketUrl = `${this.vcpOptions.endpoint}/${this.vcpOptions.chargePointId}`;
-            const protocol = toProtocolVersion(this.vcpOptions.ocppVersion);
-            this.ws = new WebSocket(websocketUrl, [protocol], {
-                rejectUnauthorized: false,
-                followRedirects: true,
-                headers: {
-                    ...(this.vcpOptions.basicAuthPassword && {
-                        Authorization: `Basic ${Buffer.from(
-                            `${this.vcpOptions.chargePointId}:${this.vcpOptions.basicAuthPassword}`,
-                        ).toString("base64")}`,
-                    }),
-                },
-            });
+            this.initializeWebSocket(resolve, reject);
+        });
+    }
 
-            this.ws.on("open", () => {
-                this.ws?.removeAllListeners("error");
-                this.ws?.on("error", (error: Error) => {
-                    this._wsError(error);
-                });
-                resolve();
+    private initializeWebSocket(resolve: (value: (PromiseLike<void> | void)) => void, reject: (reason?: any) => void) {
+        const websocketUrl = `${this.vcpOptions.endpoint}/${this.vcpOptions.chargePointId}`;
+        const protocol = toProtocolVersion(this.vcpOptions.ocppVersion);
+        this.ws = new WebSocket(websocketUrl, [protocol], {
+            rejectUnauthorized: false,
+            followRedirects: true,
+            headers: {
+                ...(this.vcpOptions.basicAuthPassword && {
+                    Authorization: `Basic ${Buffer.from(
+                        `${this.vcpOptions.chargePointId}:${this.vcpOptions.basicAuthPassword}`,
+                    ).toString("base64")}`,
+                }),
+            },
+        });
+
+        this.ws.on("open", () => {
+            this.ws?.removeAllListeners("error");
+            this.ws?.on("error", (error: Error) => {
+                this._wsError(error);
             });
-            this.ws.on("message", (message: string) => this._onMessage(message));
-            this.ws.on("ping", () => {
-                logger.info(`${this.vcpOptions.chargePointId}:${this.vcpOptions.ocppVersion} Received PING`);
-            });
-            this.ws.on("pong", () => {
-                logger.info(`${this.vcpOptions.chargePointId}:${this.vcpOptions.ocppVersion} Received PONG`);
-            });
-            this.ws.on("close", (code: number, reason: string) =>
-                this._onClose(code, reason),
-            );
-            this.ws.on("error", (error: Error) => {
-                logger.error(`${this.vcpOptions.chargePointId}:${this.vcpOptions.ocppVersion} - ${error.message}`);
-                reject(new Error(error.message));
-            });
+            resolve();
+        });
+        this.ws.on("message", (message: string) => this._onMessage(message));
+        this.ws.on("ping", () => {
+            logger.info(`${this.vcpOptions.chargePointId}:${this.vcpOptions.ocppVersion} Received PING`);
+        });
+
+        this.ws.on("close", (code: number, reason: string) =>
+            this._onClose(code, reason),
+        );
+        this.ws.on("error", (error: Error) => {
+            logger.error(`${this.vcpOptions.chargePointId}:${this.vcpOptions.ocppVersion} - ${error.message}`);
+            reject(new Error(error.message));
         });
     }
 
@@ -90,8 +90,10 @@ export class VCP {
 
     // biome-ignore lint/suspicious/noExplicitAny: ocpp types
     send(ocppCall: OcppCall<any>) {
-        if (!this.ws) {
-            throw new Error("${this.vcpOptions.chargePointId}:${this.vcpOptions.ocppVersion} Websocket not initialized. Call connect() first");
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            logger.error("Websocket not initialized. Call connect() first");
+            this.configureReconnect();
+            return;
         }
         ocppOutbox.enqueue(ocppCall);
         const jsonMessage = JSON.stringify([
@@ -112,7 +114,8 @@ export class VCP {
     // biome-ignore lint/suspicious/noExplicitAny: ocpp types
     respond(result: OcppCallResult<any>) {
         if (!this.ws) {
-            throw new Error("Websocket not initialized. Call connect() first");
+            logger.error("Websocket not initialized. Call connect() first");
+            return;
         }
         const jsonMessage = JSON.stringify([3, result.messageId, result.payload]);
         logger.info(`${this.vcpOptions.chargePointId}:${this.vcpOptions.ocppVersion} Responding with ➡️  ${jsonMessage}`);
@@ -127,7 +130,8 @@ export class VCP {
     // biome-ignore lint/suspicious/noExplicitAny: ocpp types
     respondError(error: OcppCallError<any>) {
         if (!this.ws) {
-            throw new Error("Websocket not initialized. Call connect() first");
+            logger.error("Websocket not initialized. Call connect() first");
+            return;
         }
         const jsonMessage = JSON.stringify([
             4,
@@ -146,15 +150,21 @@ export class VCP {
         }, interval);
     }
 
+    configureReconnect() {
+        if (this.reconnectInterval) { return; }
+        this.reconnectInterval = setInterval(async () => {
+            if (this.ws == undefined) {
+                logger.info("Trying to reconnect...");
+                try { await this.connect();} catch (e) {logger.error("Failed to reconnect: " + e) }
+            }
+        }, 30000);
+    }
+
     close() {
         if (!this.ws) {
-            throw new Error(
-                "Trying to close a Websocket that was not opened. Call connect() first",
-            );
+            return;
         }
-        this.isFinishing = true;
         this.ws.close();
-        this.ws = undefined;
     }
 
     async getDiagnosticData(): Promise<LogEntry[]> {
@@ -240,9 +250,7 @@ export class VCP {
     }
 
     private _onClose(code: number, reason: string) {
-        if (this.isFinishing) {
-            return;
-        }
+        this.ws = undefined;
         logger.info(`Connection closed. code=${code}, reason=${reason}`);
     }
 
