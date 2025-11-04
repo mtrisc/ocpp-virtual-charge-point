@@ -34,6 +34,7 @@ export class VCP {
     private ws?: WebSocket;
     private readonly messageHandler: OcppMessageHandler;
     private reconnectInterval?: NodeJS.Timeout;
+    private heartbeatInterval?: NodeJS.Timeout;
 
     transactionManager = new TransactionManager();
 
@@ -145,7 +146,7 @@ export class VCP {
     }
 
     configureHeartbeat(interval: number) {
-        setInterval(() => {
+        this.heartbeatInterval = setInterval(() => {
             this.send(heartbeatOcppMessage.request({}));
         }, interval);
     }
@@ -161,6 +162,7 @@ export class VCP {
     }
 
     close() {
+        clearInterval(this.heartbeatInterval);
         if (!this.ws) {
             return;
         }
