@@ -50,7 +50,7 @@ export class StationController {
     }
 
     deleteStation(stationName: string) {
-        if (this.chargingStations.has(stationName)) {throw new Error(`Station ${stationName} does not exist`)}
+        if (!this.chargingStations.has(stationName)) {throw new Error(`Station ${stationName} does not exist`)}
         this.chargingStations.get(stationName)?.close();
         this.chargingStations.delete(stationName);
     }

@@ -41,9 +41,9 @@ function createAdminServer() {
             if (!stationName) {return c.text("Stationname must not be empty", 400)}
             try {
                 stationController.deleteStation(stationName);
-                return c.text("Station created successfully: ");
+                return c.text("Station deleted successfully: ");
             } catch (e) {
-                return c.text("Error creating station:" + e, 500);
+                return c.text("Error delete station:" + e, 500);
             }
         }
     )
