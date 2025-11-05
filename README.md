@@ -1,11 +1,11 @@
-# OCPP Virtual Charge Point
+# OCPP Virtual Charge Point Controller
 
 A fork of [ocpp-vcp](https://github.com/solidstudiosh/ocpp-vcp)
 The original project is a great tool for testing OCPP 1.6 and 2.0.1.
 
 The main target is making this amazing simulator dockerized and usable in integration tests.  
 For example, creating the stations dynamically and sending messages to and from them.  
-The admin server is now automatically started and takes care of creating the charging stations.
+The admin server (controller) is now automatically started and takes care of creating the charging stations.
 
 ## Prerequisites
 
