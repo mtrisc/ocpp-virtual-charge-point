@@ -38,12 +38,15 @@ export abstract class OcppBase<
   parseRequestPayload = (payload: z.infer<ReqSchema>): z.infer<ReqSchema> => {
     const parseResult = this.reqSchema.safeParse(payload);
     if (parseResult.error) {
-      logger.warn("REQUEST payload parsing errors", {
+      let error = {
         action: this.action,
         payload: payload,
         errors: JSON.stringify(parseResult.error.issues),
-      });
+      };
+      logger.warn("REQUEST payload parsing errors", error);
+      throw new Error(JSON.stringify(error));
     }
+
     return parseResult.data;
   };
 
