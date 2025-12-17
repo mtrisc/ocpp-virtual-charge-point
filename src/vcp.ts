@@ -218,7 +218,12 @@ export class VCP {
         const [type, ...rest] = data;
         if (type === 2) {
             const [messageId, action, payload] = rest;
-            validateOcppIncomingRequest(this.vcpOptions.ocppVersion, action, payload);
+            try {
+                validateOcppIncomingRequest(this.vcpOptions.ocppVersion, action, payload);
+            } catch (e) {
+                this.respondError({messageId, errorCode: 'ProtocolError', errorDescription: "ocpp request validation not successful", errorDetails: e});
+                return;
+            }
             this.messageHandler.handleCall(this, {messageId, action, payload});
         } else if (type === 3) {
             const [messageId, payload] = rest;
