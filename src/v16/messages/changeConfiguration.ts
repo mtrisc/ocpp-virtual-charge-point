@@ -21,7 +21,7 @@ class ChangeConfigurationOcppMessage extends OcppIncoming<
     vcp: VCP,
     call: OcppCall<z.infer<ChangeConfigurationReqType>>,
   ): Promise<void> => {
-    vcp.respond(this.response(call, { status: "Accepted" }));
+    vcp.respond(this.response(call, { status: "RebootRequired" }));
   };
 }
 
