@@ -35,6 +35,16 @@ class ChangeAvailabilityOcppIncoming extends OcppIncoming<
         }),
       );
     }
+    if (call.payload.operationalStatus === "Operative") {
+          vcp.send(
+              statusNotificationOcppOutgoing.request({
+                  timestamp: new Date().toISOString(),
+                  connectorStatus: "Available",
+                  evseId: call.payload.evse?.id ?? 1,
+                  connectorId: call.payload.evse?.connectorId ?? 1,
+              }),
+          );
+      }
   };
 }
 
