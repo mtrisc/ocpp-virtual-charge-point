@@ -33,6 +33,15 @@ class ChangeAvailabilityOcppMessage extends OcppIncoming<
         }),
       );
     }
+      if (call.payload.type === "Operative") {
+          vcp.send(
+              statusNotificationOcppMessage.request({
+                  connectorId: call.payload.connectorId,
+                  errorCode: "NoError",
+                  status: "Available",
+              }),
+          );
+      }
   };
 }
 
